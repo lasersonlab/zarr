@@ -830,7 +830,7 @@ copying a group named 'foo' from an HDF5 file to a Zarr group::
     >>> zarr.copy(source['foo'], dest, log=stdout)
     copy /foo
     copy /foo/bar
-    copy /foo/bar/baz (100,) int64
+    copy /foo/bar/baz (100,) ((50,)) int64
     all done: 3 copied, 0 skipped, 800 bytes copied
     (3, 0, 800)
     >>> dest.tree()  # N.B., no spam
@@ -848,8 +848,8 @@ groups and datasets, use :func:`zarr.convenience.copy_all`, e.g.::
     >>> zarr.copy_all(source, dest, log=stdout)
     copy /foo
     copy /foo/bar
-    copy /foo/bar/baz (100,) int64
-    copy /spam (100,) int64
+    copy /foo/bar/baz (100,) ((50,)) int64
+    copy /spam (100,) ((30,)) int64
     all done: 4 copied, 0 skipped, 1,600 bytes copied
     (4, 0, 1600)
     >>> dest.tree()
