@@ -112,7 +112,14 @@ def normalize_chunks(chunks, shape, typesize):
 
     # handle bad dimensionality
     if len(chunks) > len(shape):
-        raise ValueError('too many dimensions in chunks')
+        raise ValueError(
+            'too many dimensions in chunks %s (%d) vs %s (%d)' % (
+                chunks,
+                len(chunks),
+                shape,
+                len(shape)
+            )
+        )
 
     # handle underspecified chunks
     if len(chunks) < len(shape):

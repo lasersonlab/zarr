@@ -6,7 +6,6 @@ import io
 import re
 import itertools
 
-
 from zarr.core import Array
 from zarr.creation import (open_array, normalize_store_arg,
                            array as _create_array)
@@ -719,7 +718,7 @@ def copy(source, dest, name=None, shallow=False, without_attrs=False, log=None,
         >>> zarr.copy(source['foo'], dest, log=stdout)
         copy /foo
         copy /foo/bar
-        copy /foo/bar/baz (100,) int64
+        copy /foo/bar/baz (100,) ((50,)) int64
         all done: 3 copied, 0 skipped, 800 bytes copied
         (3, 0, 800)
         >>> dest.tree()  # N.B., no spam
@@ -746,19 +745,19 @@ def copy(source, dest, name=None, shallow=False, without_attrs=False, log=None,
         ...
         copy /foo
         copy /foo/bar
-        copy /foo/bar/baz (100,) int64
+        copy /foo/bar/baz (100,) ((100,)) int64
         an object 'spam' already exists in destination '/foo'
         >>> zarr.copy(source['foo'], dest, log=stdout, if_exists='replace', dry_run=True)
         copy /foo
         copy /foo/bar
-        copy /foo/bar/baz (100,) int64
-        copy /foo/spam (1000,) int64
+        copy /foo/bar/baz (100,) ((100,)) int64
+        copy /foo/spam (1000,) ((1000,)) int64
         dry run: 4 copied, 0 skipped
         (4, 0, 0)
         >>> zarr.copy(source['foo'], dest, log=stdout, if_exists='skip', dry_run=True)
         copy /foo
         copy /foo/bar
-        copy /foo/bar/baz (100,) int64
+        copy /foo/bar/baz (100,) ((100,)) int64
         skip /foo/spam (1000,) int64
         dry run: 3 copied, 1 skipped
         (3, 1, 0)
@@ -776,7 +775,6 @@ def copy(source, dest, name=None, shallow=False, without_attrs=False, log=None,
 
     # setup logging
     with _LogWriter(log) as log:
-
         # do the copying
         n_copied, n_skipped, n_bytes_copied = _copy(
             log, source, dest, name=name, root=True, shallow=shallow,
@@ -839,7 +837,16 @@ def _copy(log, source, dest, name, root, shallow, without_attrs, if_exists,
         if do_copy:
 
             # log a message about what we're going to do
-            log('copy {} {} {}'.format(source.name, source.shape, source.dtype))
+            log(
+                'copy {} {} ({}) {}'.format(
+                    source.name,
+                    source.shape,
+                    (create_kws['chunks']
+                     if 'chunks' in create_kws
+                     else source.chunks),
+                    source.dtype
+                )
+            )
 
             if not dry_run:
 
@@ -950,10 +957,19 @@ def _copy(log, source, dest, name, root, shallow, without_attrs, if_exists,
 
             # recurse
             for k in source.keys():
+                # allow passing different chunk-sizes for different keys
+                kws = create_kws.copy()
+                if 'chunks' in kws and isinstance(kws['chunks'], dict):
+                    chunks_dict = kws['chunks']
+                    if k in chunks_dict:
+                        kws['chunks'] = chunks_dict[k]
+                    else:
+                        del kws['chunks']
+
                 c, s, b = _copy(
                     log, source[k], grp, name=k, root=False, shallow=shallow,
                     without_attrs=without_attrs, if_exists=if_exists,
-                    dry_run=dry_run, **create_kws)
+                    dry_run=dry_run, **kws)
                 n_copied += c
                 n_skipped += s
                 n_bytes_copied += b
@@ -1027,8 +1043,8 @@ def copy_all(source, dest, shallow=False, without_attrs=False, log=None,
     >>> zarr.copy_all(source, dest, log=sys.stdout)
     copy /foo
     copy /foo/bar
-    copy /foo/bar/baz (100,) int64
-    copy /spam (100,) int64
+    copy /foo/bar/baz (100,) ((50,)) int64
+    copy /spam (100,) ((30,)) int64
     all done: 4 copied, 0 skipped, 1,600 bytes copied
     (4, 0, 1600)
     >>> dest.tree()
@@ -1055,12 +1071,16 @@ def copy_all(source, dest, shallow=False, without_attrs=False, log=None,
 
     # setup logging
     with _LogWriter(log) as log:
-
+        chunks = create_kws['chunks'] if 'chunks' in create_kws else None
         for k in source.keys():
+            kws = create_kws.copy()
+            if isinstance(chunks, dict) and k in chunks:
+                kws['chunks'] = chunks[k]
+
             c, s, b = _copy(
                 log, source[k], dest, name=k, root=False, shallow=shallow,
                 without_attrs=without_attrs, if_exists=if_exists,
-                dry_run=dry_run, **create_kws)
+                dry_run=dry_run, **kws)
             n_copied += c
             n_skipped += s
             n_bytes_copied += b
